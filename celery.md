@@ -76,7 +76,7 @@ Activate your virtual environment and change directory to your django project.
 - Open Rabbitmq management console http://127.0.0.1:15672/ to view server status.
 
 
-## Celery Beat for periodic jobs
+### Celery Beat for periodic jobs
 The following section discusses about enabling celert beat for scheduling periodic tasks using celery and rabbit-mq.
 - Install python package
   ```shell 
@@ -119,8 +119,26 @@ The following section discusses about enabling celert beat for scheduling period
   > :warning: Do not run more than one instance of celery beat process.
   
   
-  ### Author
-  Gagandeep Singh
+## Key Points 
+
+### Start celery worker/beat process:
   
-  (singh.gagan144@gmail.com)
+- Development only (Run worker and beat together)
+  ```shell
+  celery -A gagan_tutorial worker --beat --scheduler django --concurrency=4 -l INFO
+  ```
   
+- Production usage:
+  - Worker:
+    ```shell
+    celery -A gagan_tutorial worker --concurrency=4 -l INFO
+    ```
+    
+  - Beat scheduler:
+    ```shell
+    celery -A gagan_tutorial beat -l INFO --scheduler django
+    ```
+  
+## Author
+Gagandeep Singh
+(singh.gagan144@gmail.com)
