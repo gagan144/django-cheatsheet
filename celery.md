@@ -40,13 +40,101 @@ Activate your virtual environment and change directory to your django project.
     # ...
     ```
     
-- Create `celery.py` file inside the project app `<projectname>/celery.py`. 
-  Refer the file [gagan_tutorial/celery.py](gagan_tutorial/celery.py) for the contents.
-  
-- Import the celery app in `<projectname>/__init__.py`. Refer [gagan_tutorial/\_\_init\_\_.py](gagan_tutorial/__init__.py)
+- Create `celery.py` file inside the project app `<projectname>/celery.py` with the following content: 
+  ```shell
+  import os
+  from celery import Celery
 
-- Create `task.py` inside any django app and define the task using the celery syntax.
-  For instance, refer to the task file [gagan_tutorial/tasks.py](gagan_tutorial/tasks.py).
+  # Set the default Django settings module for the 'celery' program.
+  os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gagan_tutorial.settings')
+
+  # Create an instance celery app
+  app = Celery('gagan_tutorial')
+
+  # Using a string here means the worker doesn't have to serialize
+  # the configuration object to child processes.
+  # - namespace='CELERY' means all celery-related configuration keys
+  #   should have a `CELERY_` prefix.
+  app.config_from_object('django.conf:settings', namespace='CELERY')
+
+  # Load task modules from all registered Django apps.
+  app.autodiscover_tasks()
+
+  # Create a debug task for testing
+  @app.task(bind=True)
+  def debug_task(self):
+      print(f'Debug Task - Request: {self.request!r}')
+      
+  ```
+  
+- Import the celery app in `<projectname>/__init__.py` with the following content:
+  ```shell
+  # This will make sure the app is always imported when
+  # Django starts so that shared_task will use this app.
+  from .celery import app as celery_app
+
+  __all__ = ('celery_app',)
+  ```
+
+- Create `task.py` inside any django app and define the task using the celery syntax. For instance:
+  ```shell
+  import os
+  from django.contrib.auth.models import User
+  from django.utils import timezone
+  from django.conf import settings
+  from celery import shared_task
+
+
+  @shared_task(bind=True, track_started=True)
+  def task_test(self, message=None):
+      """
+      An asynchronous example task that counts the number of active users in the system.
+      """
+      count_all_users = User.objects.filter(is_active=True).count()
+      count_staff_users = User.objects.filter(is_active=True, is_staff=True).count()
+      count_super_users = User.objects.filter(is_active=True, is_superuser=True).count()
+
+      return {
+          "message_echo": message,
+          "count_all_users": count_all_users,
+          "count_staff_users": count_staff_users,
+          "count_super_users": count_super_users
+      }
+
+
+  @shared_task
+  def task_test_generate_report(remarks=None):
+      """
+      A periodic example task to generate user report.
+      """
+      now = timezone.now()
+
+      # Query Database
+      count_all_users = User.objects.filter(is_active=True).count()
+      count_staff_users = User.objects.filter(is_active=True, is_staff=True).count()
+      count_super_users = User.objects.filter(is_active=True, is_superuser=True).count()
+
+      # Create CSV content
+      content = "\n".join([
+          "Datetime-UTC,Count-All-Users,Count-Staff-Users,Count-Super-Users,Remarks",
+          f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')},{count_all_users},{count_staff_users},{count_super_users},{remarks if remarks else ''}"
+      ])
+
+      # Save report
+      dir_report = os.path.join(settings.BASE_DIR, "media", "user-reports")
+      path_report = os.path.join(dir_report, f"user-report-{now.strftime('%Y_%m_%d_%H_%M_%S')}.csv")
+      if not os.path.exists(dir_report):
+          os.makedirs(dir_report)
+
+      with open(path_report, "w") as f:
+          f.write(content)
+
+      # return
+      return {
+          "path_report": path_report
+      }
+
+  ```
   
   **NOTE: Please make sure that your django app is included in `INSTALLED_APPS` otherwise the worker will not recognize the tasks.**
   
@@ -63,14 +151,14 @@ Activate your virtual environment and change directory to your django project.
   
 - Start the celery worker:
   ```shell
-  celery -A gagan_tutorial worker --concurrency=4 -l INFO
+  celery -A <projectname> worker --concurrency=4 -l INFO
   ```  
   **Note:** You may run more than one instance of the worker for better parallel processing.
 
 
 - Send task to the queue:
   ```python
-  from gagan_tutorial.tasks import *
+  from myapp.tasks import *
   result = task_test.delay("hello")
   ```
 - Open django admin and check the task results at http://127.0.0.1:8000/admin/django_celery_results/taskresult/.
@@ -109,13 +197,13 @@ The following section discusses about enabling celert beat for scheduling period
 - Run celery beat:
   Open a separate terminal (in addition to celery beat) and run the following command:
   ```shell
-  celery -A gagan_tutorial beat -l INFO --scheduler django
+  celery -A <projectname> beat -l INFO --scheduler django
   ```
   _OR_
   
   Run celery worker and beat together in one command (**development purpose only**)
   ```shell
-  celery -A gagan_tutorial worker --beat --scheduler django --concurrency=4 -l INFO
+  celery -A <projectname> worker --beat --scheduler django --concurrency=4 -l INFO
   ```
   
   > :warning: Do not run more than one instance of celery beat process.
@@ -127,18 +215,18 @@ The following section discusses about enabling celert beat for scheduling period
   
 - Development only (Run worker and beat together)
   ```shell
-  celery -A gagan_tutorial worker --beat --scheduler django --concurrency=4 -l INFO
+  celery -A <projectname> worker --beat --scheduler django --concurrency=4 -l INFO
   ```
   
 - Production usage:
   - Worker:
     ```shell
-    celery -A gagan_tutorial worker --concurrency=4 -l INFO
+    celery -A <projectname> worker --concurrency=4 -l INFO
     ```
     
   - Beat scheduler:
     ```shell
-    celery -A gagan_tutorial beat -l INFO --scheduler django
+    celery -A <projectname> beat -l INFO --scheduler django
     ```
   
 ## Author
