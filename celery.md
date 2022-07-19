@@ -1,14 +1,15 @@
 # Django, Celery and RabbitMQ
 A quick documentation for integrating celery & rabbitmq with a django project for asynchronous, background, adn periodic jobs.
 
-**Last Updated On**: 13-Jun-2022
+**Last Updated On**: 19-Jul-2022
 
 **References:**
  - https://docs.celeryq.dev/en/latest/django/first-steps-with-django.html 
  - https://betterprogramming.pub/distributed-task-queues-with-celery-rabbitmq-django-703c7857fc17
  - https://simpleisbetterthancomplex.com/tutorial/2017/08/20/how-to-use-celery-with-django.html
- - [celery Beat] https://docs.celeryq.dev/en/latest/userguide/periodic-tasks.html
- - [celery Beat] https://django-celery-beat.readthedocs.io/en/latest/
+ - [Celery Brokers] https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/index.html
+ - [Celery Beat] https://docs.celeryq.dev/en/latest/userguide/periodic-tasks.html
+ - [Celery Beat] https://django-celery-beat.readthedocs.io/en/latest/
  - [Daemonizing] https://docs.celeryq.dev/en/stable/userguide/daemonizing.html
 
 
