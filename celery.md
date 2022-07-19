@@ -47,10 +47,10 @@ Activate your virtual environment and change directory to your django project.
   from celery import Celery
 
   # Set the default Django settings module for the 'celery' program.
-  os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gagan_tutorial.settings')
+  os.environ.setdefault('DJANGO_SETTINGS_MODULE', '<project>.settings')
 
   # Create an instance celery app
-  app = Celery('gagan_tutorial')
+  app = Celery('<project>')
 
   # Using a string here means the worker doesn't have to serialize
   # the configuration object to child processes.
@@ -77,7 +77,7 @@ Activate your virtual environment and change directory to your django project.
   __all__ = ('celery_app',)
   ```
 
-- Create `task.py` inside any django app and define the task using the celery syntax. For instance:
+- Create `tasks.py` inside any django app and define the task using the celery syntax. For instance:
   ```shell
   import os
   from django.contrib.auth.models import User
