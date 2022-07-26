@@ -42,8 +42,33 @@ Activate your virtual environment and change directory to your django project.
     # ...
     ```
     
+    - To use **AmazonSQS** as the message broker, 
+      
+      Install celery with sqs:
+      ```shell
+      pip install celery[sqs]
+      ```
+      and use the following settings:
+      ```python
+      from kombu.utils.url import safequote
+
+      # ...
+      CELERY_BROKER_URL = "sqs://{access_key_id}:{secret_access_key}@".format(
+          access_key_id=safequote("---access_key_id---"),
+          secret_access_key=safequote("---secret_access_key---")
+      )
+      CELERY_BROKER_TRANSPORT_OPTIONS = {
+          "region": "---region---",
+          "visibility_timeout": 3600,  # 1 Hour
+          "polling_interval": 0.3,    # In seconds
+          "queue_name_prefix": "<projectname>-dev-"
+      }
+      CELERY_TIMEZONE = TIME_ZONE
+      # ...
+      ```
+    
 - Create `celery.py` file inside the project app `<projectname>/celery.py` with the following content: 
-  ```shell
+  ```python
   import os
   from celery import Celery
 
@@ -70,7 +95,7 @@ Activate your virtual environment and change directory to your django project.
   ```
   
 - Import the celery app in `<projectname>/__init__.py` with the following content:
-  ```shell
+  ```python
   # This will make sure the app is always imported when
   # Django starts so that shared_task will use this app.
   from .celery import app as celery_app
@@ -79,7 +104,7 @@ Activate your virtual environment and change directory to your django project.
   ```
 
 - Create `tasks.py` inside any django app and define the task using the celery syntax. For instance:
-  ```shell
+  ```python
   import os
   from django.contrib.auth.models import User
   from django.utils import timezone
@@ -209,7 +234,147 @@ The following section discusses about enabling celert beat for scheduling period
   ```
   
   > :warning: Do not run more than one instance of celery beat process.
+
+
+### Daemonizing Celery worker and beat on Linux servers through systemctl
+
+- **Create directories for logs with proper permissions**
+  ```shell
+  sudo mkdir /var/log/celery /var/run/celery
+  sudo chown <user>:<group> /var/log/celery /var/run/celery 
+  ```
+
+- **Celery configuration file**
   
+  Create celery configuration file at `/etc/conf.d/celery` as follows and set 
+  the values for `CELERY_BIN` and `DJANGO_SETTINGS_MODULE` as per yor project:
+
+  ```dotenv
+  # Name of nodes to start
+  # here we have a single node
+  CELERYD_NODES="w1"
+  # or we could have three nodes:
+  # CELERYD_NODES="w1 w2 w3"
+  
+  # Absolute or relative path to the 'celery' command:
+  CELERY_BIN="/path/to/venv/bin/celery"
+  
+  # App instance to use
+  # comment out this line if you don't use an app
+  CELERY_APP="<projectname>"
+  # or fully qualified:
+  # CELERY_APP="proj.tasks:app"
+  
+  # How to call manage.py
+  CELERYD_MULTI="multi"
+  
+  # Extra command-line arguments to the worker
+  # Note: Concurrency sets the no of worker to spwan 
+  CELERYD_OPTS="--time-limit=300 --concurrency=3"
+  
+  # Log and PID files
+  # - %n will be replaced with the first part of the nodename.
+  # - %I will be replaced with the current child process index
+  #   and is important when using the prefork pool to avoid race conditions.
+  CELERYD_PID_FILE="/var/run/celery/%n.pid"
+  CELERYD_LOG_FILE="/var/log/celery/%n%I.log"
+  CELERYD_LOG_LEVEL="INFO"
+  
+  # You may wish to add these options for Celery Beat
+  CELERYBEAT_PID_FILE="/var/run/celery/beat.pid"
+  CELERYBEAT_LOG_FILE="/var/log/celery/beat.log"
+  
+  # Django settings
+  DJANGO_SETTINGS_MODULE="<projectname>.settings"
+  ```
+  
+- **Celery Worker service**
+  
+  Create a Linux system service file at `/etc/systemd/system/celery.service` with
+  the following content and set values as per your project:
+  ```unit file (systemd)
+  [Unit]
+  Description=Celery Worker Service
+  After=network.target
+  
+  [Service]
+  Type=forking
+  User=<user>
+  Group=<group>
+  EnvironmentFile=/etc/conf.d/celery
+  WorkingDirectory=/path/to/django-project
+  ExecStart=/bin/sh -c '${CELERY_BIN} -A $CELERY_APP multi start $CELERYD_NODES \
+      --pidfile=${CELERYD_PID_FILE} --logfile=${CELERYD_LOG_FILE} \
+      --loglevel="${CELERYD_LOG_LEVEL}" $CELERYD_OPTS'
+  ExecStop=/bin/sh -c '${CELERY_BIN} multi stopwait $CELERYD_NODES \
+      --pidfile=${CELERYD_PID_FILE} --logfile=${CELERYD_LOG_FILE} \
+      --loglevel="${CELERYD_LOG_LEVEL}"'
+  ExecReload=/bin/sh -c '${CELERY_BIN} -A $CELERY_APP multi restart $CELERYD_NODES \
+      --pidfile=${CELERYD_PID_FILE} --logfile=${CELERYD_LOG_FILE} \
+      --loglevel="${CELERYD_LOG_LEVEL}" $CELERYD_OPTS'
+  Restart=always
+  
+  [Install]
+  WantedBy=multi-user.target
+  ```
+
+- **Celery Beat service**
+  
+  Create another Linux system service file at `/etc/systemd/system/celerybeat.service` with
+  the following content and set values as per your project:
+  ```unit file (systemd)
+  [Unit]
+  Description=Celery Beat Service
+  After=network.target
+  
+  [Service]
+  Type=simple
+  User=<user>
+  Group=<group>
+  EnvironmentFile=/etc/conf.d/celery
+  WorkingDirectory=/path/to/django-project
+  ExecStart=/bin/sh -c '${CELERY_BIN} -A ${CELERY_APP} beat \
+      --pidfile=${CELERYBEAT_PID_FILE} \
+      --logfile=${CELERYBEAT_LOG_FILE} --loglevel=${CELERYD_LOG_LEVEL} \
+      --scheduler django'
+  Restart=always
+  
+  [Install]
+  WantedBy=multi-user.target
+  ```
+
+- **Reload the systemctl daemon**:
+  ```shell
+  sudo systemctl daemon-reload
+  ```
+  
+- **Enable the services so that it doesn't get disabled if the server restarts**:
+  ```shell
+  sudo systemctl enable celery.service
+  sudo systemctl enable celerybeat.service
+  ```
+
+- **Start your service**:
+  ```shell
+  sudo systemctl start celery.service
+  sudo systemctl start celerybeat.service
+  ```
+  
+  Check status:
+  ```shell
+  sudo systemctl status celery.service
+  sudo systemctl status celerybeat.service
+  ```
+
+#### Manage services
+```shell
+sudo systemctl start|stop|restart|status <servicename>.service
+```
+OR
+```shell
+sudo systemctl start|stop|restart|status <servicename>
+```
+
   
 ## Key Points 
 
@@ -230,6 +395,11 @@ The following section discusses about enabling celert beat for scheduling period
     ```shell
     celery -A <projectname> beat -l INFO --scheduler django
     ```
+
+- Manage celery services
+  ```shell
+  sudo systemctl start|stop|restart|status <servicename>.service
+  ```
   
 ## Author
 Gagandeep Singh
