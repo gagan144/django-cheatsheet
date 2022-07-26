@@ -1,7 +1,7 @@
 # Django, Celery and RabbitMQ
 A quick documentation for integrating celery & rabbitmq with a django project for asynchronous, background, adn periodic jobs.
 
-**Last Updated On**: 19-Jul-2022
+**Last Updated On**: 26-Jul-2022
 
 **References:**
  - https://docs.celeryq.dev/en/latest/django/first-steps-with-django.html 
@@ -37,6 +37,7 @@ Activate your virtual environment and change directory to your django project.
   
     CELERY_RESULT_BACKEND = 'django-db'
     CELERY_RESULT_SERIALIZER = 'json'
+    CELERY_RESULT_EXTENDED = True
     # DJANGO_CELERY_RESULTS_TASK_ID_MAX_LENGTH=191    # For Mysql
     # ...
     ```
