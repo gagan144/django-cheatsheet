@@ -37,7 +37,8 @@ Activate your virtual environment and change directory to your django project.
   
     CELERY_RESULT_BACKEND = 'django-db'
     CELERY_RESULT_SERIALIZER = 'json'
-    CELERY_RESULT_EXTENDED = True
+    CELERY_RESULT_EXTENDED = True  # To allow django_celery_results to store task in progress
+    CELERY_TASK_TRACK_STARTED = True  # To allow django_celery_results to store task in progress
     # DJANGO_CELERY_RESULTS_TASK_ID_MAX_LENGTH=191    # For Mysql
     # ...
     ```
@@ -76,7 +77,8 @@ Activate your virtual environment and change directory to your django project.
   os.environ.setdefault('DJANGO_SETTINGS_MODULE', '<project>.settings')
 
   # Create an instance celery app
-  app = Celery('<project>')
+  # app = Celery('<project>')
+  app = Celery('<project>', result_extended=True) # To allow django_celery_results to store task in progress
 
   # Using a string here means the worker doesn't have to serialize
   # the configuration object to child processes.
